@@ -1,5 +1,6 @@
 docx==0.2.4
 Kivy==2.1.0
+natsort==8.1.0
 numpy==1.18.1
 pandas==1.0.3
 python_docx==0.8.11

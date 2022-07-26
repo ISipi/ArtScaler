@@ -12,6 +12,7 @@ from numpy import nan
 import pandas as pd
 from os import listdir
 from os.path import join
+from natsort import natsorted
 
 
 class BuildCSV:
@@ -25,7 +26,8 @@ class BuildCSV:
         for img in listdir(self.image_files[0]):
             if img[-4:].lower() in ['.jpg', '.png']:
                 new_img_lst.append(join(self.image_files[0], img))
-        return new_img_lst
+        sorted_list = natsorted(new_img_lst)
+        return sorted_list
 
     def build(self, filename:str, scale:float) -> str:
 

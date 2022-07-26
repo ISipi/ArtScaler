@@ -44,30 +44,6 @@ import sys
 from DocMaker import BuildCSV, Scaler
 
 
-class ExitApp(Popup):
-    def build(self):
-        # create a layout widget within which we place two buttons:
-        box = BoxLayout()
-        cancel_action = Button(text='Stay in app')
-        exit_app = Button(text='Exit app')
-        box.add_widget(cancel_action)
-        box.add_widget(exit_app)
-
-        # use the above widget as content:
-        popup = Popup(content=box, title='Are you sure you want to close this app?', auto_dismiss=False,
-                      size_hint=(None, None), size=(200, 120))
-
-        # create button bindings:
-        exit_app.bind(on_press=self.exit)
-        cancel_action.bind(on_press=popup.dismiss)
-
-        # open the popup:
-        popup.open()
-
-    def exit(self, instance):
-        App.get_running_app().stop()
-
-
 class BrowseToItem(FileBrowser):
 
     def __init__(self, msg_to_log, select_folder=False, **kwargs):
