@@ -235,15 +235,15 @@ class LinkTree(TreeView):
 
     def fill_tree(self, fav_list):
         user_path = get_home_directory()
-        self._favs = self.add_node(TreeLabel(text='Favorites', is_open=True, no_selection=True))
+        self._favs = self.add_node(TreeLabel(text='Favorites', is_open=True, no_selection=False))
         self.reload_favs(fav_list)
 
-        libs = self.add_node(TreeLabel(text='Libraries', is_open=True, no_selection=True))
+        libs = self.add_node(TreeLabel(text='Libraries', is_open=True, no_selection=False))
         places = ('Documents', 'Music', 'Pictures', 'Videos')
         for place in places:
             if isdir(join(user_path, place)):
                 self.add_node(TreeLabel(text=place, path=join(user_path, place)), libs)
-        self._computer_node = self.add_node(TreeLabel(text='Computer', is_open=True, no_selection=True))
+        self._computer_node = self.add_node(TreeLabel(text='Computer', is_open=True, no_selection=False))
         self._computer_node.bind(on_touch_down=self._drives_touch)
         self.reload_drives()
 
@@ -282,8 +282,7 @@ class LinkTree(TreeView):
         places = ('Desktop', 'Downloads')
         for place in places:
             if isdir(join(user_path, place)):
-                self.add_node(TreeLabel(text=place, path=join(user_path,
-                                        place)), favs)
+                self.add_node(TreeLabel(text=place, path=join(user_path, place)), favs)
         for path, name in fav_list:
             if isdir(path):
                 self.add_node(TreeLabel(text=name, path=path), favs)

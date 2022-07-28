@@ -31,24 +31,27 @@ import kivy
 kivy.require('2.1.0')
 
 from kivy.app import App
+from kivy.properties import StringProperty
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
 from FileBrowser import FileBrowser
-from os.path import sep, dirname, expanduser, join
+from os.path import sep, dirname, expanduser, join, isfile
 import sys
 from DocMaker import BuildCSV, Scaler
-
+from threading import Thread
+from kivy.clock import Clock
+from functools import partial
 
 class BrowseToItem(FileBrowser):
 
     def __init__(self, msg_to_log, select_folder=False, **kwargs):
         super().__init__(**kwargs)
         self.msg_to_log = msg_to_log
+        self.select_folder = select_folder
         if sys.platform == 'win':
             user_path = dirname(expanduser('~')) + sep + 'Documents'
         else:
@@ -57,8 +60,10 @@ class BrowseToItem(FileBrowser):
                               favorites=[(user_path, 'Documents')],
                               dirselect=select_folder,
                               show_hidden=True)
-        self.popup = Popup(content=self.browser, title='Select a file', auto_dismiss=False)
+        title = 'Select a folder' if select_folder else 'Select a file'
+        self.popup = Popup(content=self.browser, title=title, auto_dismiss=False)
         self.browser.bind(on_success=self._fbrowser_success, on_canceled=self._fbrowser_canceled)
+        self.error_handling = ErrorHandling()
 
     def build(self):
         self.popup.open()
@@ -69,11 +74,23 @@ class BrowseToItem(FileBrowser):
 
     def _fbrowser_success(self, instance):
         self.selection = instance.selection
-        self.popup.dismiss()
-        app = App.get_running_app()
-        current_text = app.window.ids['error_text'].text
-        new_text = f'{current_text}\n{self.msg_to_log}: {instance.selection[0]}.'
-        app.window.ids['error_text'].text = new_text
+        try:
+            if isfile(self.selection[0]) and self.select_folder:
+                chop_selection = self.selection[0].split("\\")
+                chop_selection = chop_selection[:-1]
+                inte_selection = "\\".join(chop_selection)
+                self.selection[0] = inte_selection
+            self.popup.dismiss()
+            app = App.get_running_app()
+            current_text = app.window.ids['error_text'].text
+            new_text = f'{current_text}\n{self.msg_to_log}: {self.selection[0]}'
+            app.window.ids['error_text'].text = new_text
+        except IndexError as e:
+            if self.select_folder:
+                action_to_take = 'Please choose a folder'
+            else:
+                action_to_take = 'Please choose a file'
+            self.error_handling.error_msg(e, action_to_take)
 
     def return_selection(self):
         return self.selection
@@ -89,6 +106,9 @@ class MainView(App):
         self.csv_file = None
         self.save_folder_popup = None
 
+        # default filenames:
+        self.error_handling = ErrorHandling()
+
     def build(self):
 
         # main window:
@@ -100,12 +120,12 @@ class MainView(App):
         save_location = Button(text='Step 2. Save location (for CSV and final document)', size_hint=(0.5, 0.5))
         input_grid = GridLayout(size_hint=(1,2))
         input_grid.cols = 2
-        csv_filename_label = Label(text='Step 3. Give a filename for CSV file:')
-        self.csv_filename = TextInput(text='Give a filename for CSV file', multiline=False)
-        doc_filename_label = Label(text='Step 4. Give a filename for DOC file:')
-        self.doc_filename = TextInput(text='Give a filename for DOC file', multiline=False)
-        scale_label = Label(text='Step 5. Assign a scale:')
-        self.scale = TextInput(text='Give a numeric value', multiline=False)
+        csv_filename_label = Label(text='Step 3. Give a filename for CSV file (press enter):')
+        self.csv_filename = TextInput(text='ArtScaler_images_csv', hint_text='Give a filename for CSV file', multiline=False)
+        doc_filename_label = Label(text='Step 4. Give a filename for DOC file (press enter):')
+        self.doc_filename = TextInput(text='ArtScaler_images_doc', hint_text='Give a filename for DOC file', multiline=False)
+        scale_label = Label(text='Step 5. Assign a scale (press enter):')
+        self.scale = TextInput(text='50', hint_text='Give a numeric value - default is 50', multiline=False)
         prepare_csv = Button(text='Step 6a. Prepare CSV', size_hint=(0.5, 0.5))
         choose_csv = Button(text='Step 6b. Choose CSV', size_hint=(0.5, 0.5))
         run_job = Button(text='Step 7. Run the program', size_hint=(0.5, 0.5))
@@ -146,7 +166,7 @@ class MainView(App):
         self.scale.bind(on_text_validate=self.check_numeric)  # textinput widget
         prepare_csv.bind(on_press=self.build_csv)  # button widget
         choose_csv.bind(on_press=self.select_csv_file)  # button widget
-        run_job.bind(on_press=self.create_final_document)
+        run_job.bind(on_press=self._create_final_document_outer_thread)
 
         return self.window
 
@@ -159,7 +179,7 @@ class MainView(App):
             self.window.ids['error_text'].text = new_text
         except ValueError as e:
             action_to_take = 'Please give a number'
-            self.error_msg(e, action_to_take)
+            self.error_handling.error_msg(e, action_to_take)
 
     def store_csv_name(self, instance):
         msg_to_log = f'Currently saving CSV to'
@@ -190,6 +210,7 @@ class MainView(App):
 
     def build_csv(self, instance):
         try:
+
             image_files = self.img_folder_popup.return_selection()
             csv_build = BuildCSV(image_files)
             filename = join(self.save_folder_popup.return_selection()[0], self.csv_filename.text)
@@ -203,14 +224,20 @@ class MainView(App):
 
         except AttributeError as e:
             action_to_take = 'Image folder not selected, perform Step 1'
-            self.error_msg(e, action_to_take)
+            self.error_handling.error_msg(e, action_to_take)
 
         except IndexError as e:
             action_to_take = 'Check if you have images in the folder you selected or select a new folder'
-            self.error_msg(e, action_to_take)
+            self.error_handling.error_msg(e, action_to_take)
 
-    def create_final_document(self, instance):
+        except ValueError as e:
+            action_to_take = 'Scale is not a number'
+            self.error_handling.error_msg(e, action_to_take)
 
+    def _create_final_document_outer_thread(self, instance):
+        Thread(target=self.create_final_document).start()
+
+    def create_final_document(self):
         current_text = self.window.ids['error_text'].text
         new_text = f'{current_text}.\nRunning scaling....'
         self.window.ids['error_text'].text = new_text
@@ -222,7 +249,7 @@ class MainView(App):
             assert isinstance(self.csv_file, str)
         except (AttributeError, AssertionError) as e:
             action_to_take = 'Did you select the right CSV file?'
-            self.error_msg(e, action_to_take)
+            self.error_handling.error_msg(e, action_to_take)
         try:
             assert isinstance(self.save_folder_popup.return_selection()[0], str)
 
@@ -233,14 +260,21 @@ class MainView(App):
             scaler = Scaler(csv_file=csv_file, save_location=save_location, docx_filename=docx_filename)
             scaler.run_scaler()
 
-            current_text = self.window.ids['error_text'].text
-            new_text = f'{current_text}.\nFinished scaling successfully. ' \
-                       f'Your file can be found at {join(save_location, docx_filename)}.docx'
-            self.window.ids['error_text'].text = new_text
+            # schedule the GUI update back on the main thread
+            Clock.schedule_once(partial(self.finished_processing, save_location, docx_filename))
 
         except (AttributeError, AssertionError) as e:
             action_to_take = 'Did you select a save folder?'
-            self.error_msg(e, action_to_take)
+            self.error_handling.error_msg(e, action_to_take)
+
+    def finished_processing(self, save_location, docx_filename, *largs):
+        current_text = self.window.ids['error_text'].text
+        new_text = f'{current_text}.\nFinished scaling successfully. ' \
+                   f'Your file can be found at {join(save_location, docx_filename)}.docx'
+        self.window.ids['error_text'].text = new_text
+
+
+class ErrorHandling:
 
     def error_msg(self, e, action_to_take):
         grid = GridLayout()
