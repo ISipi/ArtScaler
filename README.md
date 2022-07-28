@@ -1,5 +1,5 @@
 # ArtScaler
- Image scaling based on life size
+ Image scaling based on life size. The FileBrowser.py was copied from https://github.com/kivy-garden/filebrowser.
 
 
 
