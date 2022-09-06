@@ -27,11 +27,7 @@ Alternatively, if the user has a CSV file with all the necessary information:
 
 """
 
-import kivy
-kivy.require('2.1.0')
-
 from kivy.app import App
-from kivy.properties import StringProperty
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -45,6 +41,7 @@ from DocMaker import BuildCSV, Scaler
 from threading import Thread
 from kivy.clock import Clock
 from functools import partial
+
 
 class BrowseToItem(FileBrowser):
 
@@ -259,7 +256,11 @@ class MainView(App):
 
             scaler = Scaler(csv_file=csv_file, save_location=save_location, docx_filename=docx_filename)
             scaler.run_scaler()
-
+            errors = scaler.get_error_msgs()
+            for line in errors:
+                cur_txt = self.window.ids['error_text'].text
+                new_text = f'{cur_txt}.\n{line}'
+                self.window.ids['error_text'].text = new_text
             # schedule the GUI update back on the main thread
             Clock.schedule_once(partial(self.finished_processing, save_location, docx_filename))
 
